@@ -1,0 +1,545 @@
+# user defined variables
+PctFertN
+PctManrN
+# raster defined variables
+OM
+drainClass
+Nresponse
+#
+# This is a Shiny web application. You can run the application by clicking
+# the 'Run App' button above.
+#
+# Find out more about building applications with Shiny here:
+#
+#    http://shiny.rstudio.com/
+#
+
+library(shiny)
+library(shinydashboard)
+library(tidyverse)
+library(shinyWidgets)
+library(shinyBS)
+library(plotly)
+library(gt)
+library(dashboardthemes)
+
+# load data
+# load universal variables
+#Nvars <- read_csv("data/TableMenu.csv")
+#names <- read_csv("data/nameConversions.csv")
+#Nvars <- read_csv("data/Nvars.csv")
+Ninputs <- read.csv("data/NmodelInputs.csv")
+crops <- sort(unique(Ninputs$crop))
+soils <- read.csv("data/soilsForNitrate.csv")
+counties <- sort(unique(soils$County))
+#Nrecs <- read_csv("data/NitrogenFertRecs.csv")
+denitr <- read_csv("data/denitr.csv")
+
+
+# Define UI for application that draws a histogram
+ui <- dashboardPage(
+  # Page header
+  dashboardHeader(
+    title = "Nitrate Leaching Potential v1.0",
+    titleWidth = 450),
+  
+  dashboardSidebar(
+    sidebarMenu(
+      menuItem("App Description", tabName = "appdescription"),
+      menuItem("Model inputs", tabName = "inputs"),
+      menuItem("Nitrate leaching", tabName = "nitrate"),
+      menuItem("Methods", tabName = "methods"),
+      menuItem("Acknowledgement", tabName = "acknowledgement"),
+      menuItem("References", tabName = "resources")
+    )
+  ),
+  
+  dashboardBody(
+    shinyDashboardThemes(
+      theme = "poor_mans_flatly"
+    ),
+    tabItems(
+      tabItem(tabName = "appdescription",
+              fluidRow(
+                column(1,
+                       h2(img(src = "grasslandColorCenter.png", height = 60))),
+                
+                column(10, align = "center",
+                       h2("Nitrate Leaching Potential"),
+                
+                column(1,
+                       h2(img(src = "uw-crest.png", height = 60)))),
+              hr(style = "margin-top:0px"),
+              fluidRow(
+                column(12,
+                       tags$div(
+                         "This app is part of the ",
+                         tags$a(href="https://grasslandag.org/", 
+                                "Grassland 2.0 project."), "It was designed to compare nitrate leaching potential 
+                         under different crop managements located in Wisconsin, USA."),
+                       br(),
+                       p("To determine nitrate leaching potential, select your soil type and then define
+                        your cropping system. You can hit 'Run models' as many times as you like under different soils and cropping systems.")
+                ))
+      )),
+      tabItem(tabName = "inputs",
+              fixedRow(
+                column(12,
+                       h3("1. Select Your Soil Series"),
+                       helpText(
+                         a(
+                           "Click here to find your soil (NRCS Web Soil Survey)",
+                           href = "https://websoilsurvey.sc.egov.usda.gov/App/WebSoilSurvey.aspx",
+                           target = "_blank")))),
+              # soil selection begins
+              # row of selectInputs for selecting soils
+              fixedRow(
+                # Input 1: dropdown for county selections
+                column(4,
+                       selectInput(
+                         inputId = "county",
+                         label = h4("County"),
+                         choices = counties)),
+                #Input 2: dropdown for component name selections. list is created in server.
+                column(4, uiOutput("compname")),
+                # Input 3: dropdown for soil symbol. list is created in server.
+                column(4, uiOutput("musym"))),
+      
+              # crop management definition begins
+              fixedRow(
+                column(12,
+                       h3(("2. Define your cropping System")))
+              ),
+              
+              # row of input including crop rotation, cover crop and tillage (density for dry lot and pasture)
+              fixedRow(
+                ## COL 1 ##
+                # crop rotation selection
+                column(4,
+                       radioButtons(
+                         inputId = "crop",
+                         label = h4("Crop Rotation"),
+                         choices = crops)),
+                
+                ## COL 2 ##
+                # cover crop, or density, depending on crop rotation
+                column(4,
+                       uiOutput("cover"),
+                       uiOutput("legume")),
+                
+                ## COL 3 ##
+                # tillage selection or density (if rotational pasture)
+                column(4,
+                       uiOutput("rotation"),
+                       uiOutput("density"))
+              ),
+              
+              conditionalPanel(
+                condition = "input.crop != 'Dry lot'",
+                h4("Fertilizer inputs:")
+              ),
+              
+              # fertilizer (turned off for dry lot)
+              fixedRow(
+                column(6, align = "center",
+                       uiOutput("fert")),
+                
+                column(6,
+                       uiOutput("manure"))
+              ),
+              
+              # enter previous predictions
+              fixedRow(
+                column(12,
+                       h3("3. Input yield and erosion predictions"))
+              ),
+              tags$div(
+                "Enter crop yield and predicted erosion from ",
+                tags$a(href="https://data-viz.it.wisc.edu/Grassland/soilPredictions/", 
+                       "SnapPlus shiny app.")),
+              br(),
+              fluidRow(
+                column(6,
+                       numericInput(inputId = "yield",
+                                    label = "Yield (tons/acre)",
+                                    value = 0)),
+                column(6,
+                       numericInput(inputId = "erosion",
+                                    label = "Predicted erosion (tons/acre)",
+                                    value = 0))
+              ),
+              fluidRow(
+                column(12, align = "center",
+                       actionBttn(
+                         inputId = "runModels",
+                         label = "Predict nitrate leaching",
+                         style = "simple",
+                         color = "success"))
+              ),
+              fluidRow(
+                column(12,
+                       tableOutput("Ninputs"))
+              ),
+              column(12,
+                     tableOutput("Noutputs"))),
+      tabItem(tabName = "nitrate",
+              fluidRow(
+                column(6,
+                       tableOutput("scenarios"))
+              ),
+              fluidRow(
+                column(6,
+                       plotlyOutput("Nleach"))
+              ),
+              fluidRow(
+                column(6,
+                       actionButton("reset", "Clear scenarios")))
+              )
+              
+)))
+
+# Define server logic required to draw a histogram
+server <- function(input, output) {
+  
+  # update soil comp list when county selected
+  observeEvent(input$county, {
+    soils_by_county <- soils %>% filter(County == input$county)
+    comps <- unique(soils_by_county$compnam)
+    
+    output$compname <- renderUI({
+      selectInput(
+        inputId = "compname",
+        label = h4("Soil Name"),
+        choices = comps)
+    })
+  })
+  
+  # update musym list when soil comp selected
+  observeEvent(input$compname, {
+    soils_by_comp <-
+      soils %>% filter(County == input$county, compnam == input$compname)
+    musyms <- unique(soils_by_comp$MUSYM)
+    
+    output$musym <- renderUI({
+      selectInput(
+        inputId = "musym",
+        label = h4("Soil Symbol"),
+        choices = musyms)
+    })
+  })
+  
+  # cover crop / contour / rotational
+  # dependent only on cropping system
+  observeEvent(input$crop, {
+    
+    options <- filter(Ninputs, crop == input$crop)
+    
+    covers <- unique(options$cover)
+    rotations <- unique(options$rotation)
+    densities <- unique(options$density)
+    legumes <- unique(options$legume)
+    
+    # cover crop
+    output$cover <- renderUI({
+      selectInput(
+        inputId = "cover",
+        label = h4("Cover Crop System"),
+        choices = covers,
+        selected = "None")
+    })
+    
+    # rotation and density
+    output$legume <- renderUI({
+      selectInput(
+        inputId = "legume",
+        label = h4("Legume interseed"),
+        choices = legumes
+      )
+    })
+    
+    # rotation and density
+    output$rotation <- renderUI({
+      radioButtons(
+        inputId = "rotation",
+        label = h4("Rotational Management"),
+        choices = rotations
+      )
+    })
+    
+    # rotation and densitu
+    output$density <- renderUI({
+      radioButtons(
+        inputId = "density",
+        label = h4("Animal density"),
+        choices = densities
+      )
+    })
+    
+    # hide elements when appropriate
+    if (anyNA(covers)) output$cover <- NULL
+    if (anyNA(rotations)) output$rotation <- NULL
+    if (anyNA(densities)) output$density <- NULL
+    if (anyNA(legumes)) output$legume <- NULL
+    
+    # fertilizer (off for dry lot)
+    if (input$crop != "Dry lot") {
+      output$fert <- renderUI({
+        sliderInput(
+          inputId = "fertilizerN",
+          label = h4("Percent of crop N recommendation met with synthetic fertilizer"),
+          min = 0, max = 100, value = 0)
+      })
+      
+      output$manure <- renderUI({
+        sliderInput(
+          inputId = "manureN",
+          label = h4("Percent of crop N recommendation met with manure"),
+          min = 0, max = 100, value = 0)
+      })
+      
+    } else {
+      output$fert <- NULL
+      output$manure <- NULL
+    }
+  })
+  
+  # stocking density
+  # depends on rotation
+  observeEvent(list(input$crop, input$rotation), {
+    
+    options <- filter(Ninputs, crop == input$crop)
+    
+    if (!anyNA(options$rotation)) {
+      req(input$rotation)
+      options <- filter(options, rotation == input$rotation)
+    }
+    
+    densities <- unique(options$density)
+    
+    if (anyNA(densities)) {
+      output$density <- NULL
+    } else {
+      output$density <- renderUI({
+        radioButtons(
+          inputId = "density",
+          label = h4("Herd density"),
+          choices = densities
+        )
+      })
+    }
+  })
+  
+  scenario <- reactiveValues()
+  scenario$df <- data.frame(soilSeries = character(0), musym = character(0), cropSystem = character(0)#,
+                            #cover = character(0), rotation = character(0), density = character(0), 
+                            #fertNrec = numeric(0),synN = numeric(0), manureN = numeric(0)
+                            )
+  leachPotential <- reactiveValues()
+  leachPotential$df <- data.frame(scenario = numeric(0), rotLeachN = numeric(0))
+  vals <- reactiveValues(count = 0)
+  #rotLeachN <- reactiveValues(meanLeach = numeric(0)) 
+
+  observeEvent(input$runModels, {
+    # soil properties
+    soil <- soils %>%
+      filter(County == input$county,
+             compnam == input$compname,
+             MUSYM == input$musym)
+
+    # process user inputs
+    crop <- input$crop
+    options <- filter(Ninputs, crop == input$crop)
+    ## initialize variable to keep track of leachable N for each year of rotation
+    rotYrs = unique(options$rotYrs)
+    rotationCrops = unique(options$CropName)
+    
+    if(crop != "Dry lot") {
+      fert <- input$fertilizerN
+      manure <- input$manureN
+    } else {
+      fert = 0
+      manure = 0
+    }
+    
+    cropSystem = c() # paste the values from within the loop
+    Ninputs = matrix(ncol = 6)
+    Noutputs = matrix(ncol = 7)
+    leachN = c()
+    for (i in 1:rotYrs) {
+      # filter to correct row 
+      cropYearNinputs <- filter(options, CropName == rotationCrops[i])
+      if (!anyNA(cropYearNinputs$cover)) {
+        req(input$cover)
+        cropYearNinputs <- filter(cropYearNinputs, cover == input$cover)
+      }
+      if (!anyNA(cropYearNinputs$rotation)) {
+        req(input$rotation)
+        cropYearNinputs <- filter(cropYearNinputs, rotation == input$rotation)
+      }
+      if (!anyNA(cropYearNinputs$density)) {
+        req(input$density)
+        cropYearNinputs <- filter(cropYearNinputs, density == input$density)
+      }
+      if (!anyNA(cropYearNinputs$legume)) {
+        req(input$legume)
+        cropYearNinputs <- filter(cropYearNinputs, legume == input$legume)
+      }
+      # determine which soil value to use
+      rasterLookup <- unique(cropYearNinputs$rasterLookup)
+      om <- unique(soil$om)
+      rasterVal = c()
+      if(rasterLookup == 'nResponse') {
+        rasterVal = soil$nResponse
+      } else {
+        if(om < 2) {
+          rasterVal = '<2'
+        } else if(between(om, 2, 9.9)) {
+          rasterVal = '2-9.9'
+        } else if(between(om, 10, 20)) {
+          rasterVal = '20-Oct'
+        } else if(om > 20) {
+          rasterVal = '>20'
+        }
+      }
+      cropYearNinputs <- filter(cropYearNinputs, rasterVals %in% rasterVal)
+
+      fertNrec = cropYearNinputs$Nrec
+      NfixPct = cropYearNinputs$NfixPct
+      NH3loss = cropYearNinputs$NH3loss
+      grazedManureN = cropYearNinputs$grazedManureN
+      Nharv_content = cropYearNinputs$Nharv_content
+      
+      denitr <- filter(denitr, DrainClass_char %in% soil$drangcl)
+      denitr <- filter(denitr, omLow <= om & om <= omHigh)
+      denitLoss <- denitr$Denitr
+    
+    
+      # variables calculated
+      fertN = fert/100 * fertNrec  ## actual fertilizer N applied in lb/ac
+      manrN = manure/100 * fertNrec  ## actual manure N applied in lb/ac
+      precip = 32  ## varies by region, inches/year (ridgeValley = 43, driftless = 44, ne = 35, cb = 38)
+      precN = 0.5 * precip * 0.226  ## precipitation N inputs in lb/ac
+      dryN = precN  ## assume dry deposition is equal to precipitation, lb/ac
+      harvN = input$yield * 2000 * Nharv_content  ## harvested N output, lb/ac (crop yield in tons dm, convert to lbs dm) # dry lot yield = 0
+      fixN = harvN * NfixPct / 100 + 3  ## N fixation input, lb/ac
+      NH3_N = fertN * NH3loss / 100  ## ammonia loss output, lb/ac
+      denitN = fertN * denitLoss / 100  ## denitrification loss,
+      erosN = input$erosion * om * 2  ## note that OM is in units of % ## erosion from models = tons/acre
+      inputsN = fertN + manrN + precN + dryN + fixN + grazedManureN
+      gasN = 0.01 * inputsN  ## misc gases are estimated as 1% of inputs
+      NH3senN = 8  ## ammonia loss at senescence
+      runoffN = 0
+      outputsN = harvN + NH3_N + denitN + erosN + gasN + NH3senN + runoffN
+      
+      Ninputs[i,1] = fertN 
+      Ninputs[i,2] = manrN
+      Ninputs[i,3] = precN
+      Ninputs[i,4] = dryN
+      Ninputs[i,5] = fixN
+      Ninputs[i,6] = grazedManureN
+  
+      Noutputs[i,1] = harvN
+      Noutputs[i,2] = NH3_N 
+      Noutputs[i,3] = denitN
+      Noutputs[i,4] = erosN 
+      Noutputs[i,5] = gasN 
+      Noutputs[i,6] = NH3senN 
+      Noutputs[i,7] = runoffN
+      
+      if (is.na(cropYearNinputs$cover)){
+        cover <- NULL
+        } else {
+          ifelse(cropYearNinputs$cover == "None", cover <- "No cover", cover <- cropYearNinputs$cover)} 
+      if (is.na(cropYearNinputs$rotation)){ 
+        rotation <- NULL
+        } else {
+          rotation <- cropYearNinputs$rotation} 
+      if (is.na(cropYearNinputs$density)) {
+        density <- NULL
+        } else {
+          density <- cropYearNinputs$density} 
+      if (is.na(cropYearNinputs$legume)) {
+        legume <- NULL
+        } else {
+        ifelse(cropYearNinputs$legume == "Yes", legume <- "with legume", legume <- "no legume")} 
+  
+      cropSystem = str_trim(paste(cropYearNinputs$crop, cover, rotation, density, legume))
+      
+      leachN[i] = inputsN - outputsN
+    }
+    
+    inputNames = c('fertN', 'manrN', 'precN', 'dryN', 'fixN', 'grazedManureN')
+    output$Ninputs <- renderTable(
+      as.data.frame(Ninputs),
+      colnames(Ninputs) <- inputNames
+    )
+    
+    output$Noutputs <- renderTable(
+      outputNames = c('harvN', 'NH3_N', 'denitN', 'erosN', 'gasN', 'NH3senN', 'runoffN'),
+      as.data.frame(Noutputs),
+      colnames(Noutputs) <- outputNames
+    )
+    
+    # scenario dataframe
+    newScenario <- c(soilSeries = unique(soil$compnam), musym = unique(soil$MUSYM), 
+                     cropSystem = cropSystem#, synN = fertilizerN$input, manureN = manureN$input
+    ) 
+    scenario$df <- bind_rows(scenario$df, newScenario) 
+    
+    output$scenarios <- renderTable({
+      scenario$df
+    })
+
+    # nitrogen leaching dataframe
+    vals$count <- vals$count + 1
+    rotLeachN <- round(mean(leachN),2)
+    
+    newLeachN <- c(scenario = vals$count, rotLeachN = rotLeachN)
+    
+    leachPotential$df <- bind_rows(leachPotential$df, newLeachN)
+    
+    # nitrogen leaching plot
+    output$Nleach <- renderPlotly({
+      
+      validate(
+        need(is.data.frame(leachPotential$df), "add scenarios")
+      )
+      
+      y <- list(
+        title = " ",
+        #range = c(0, max(pred_table$df$Erosion)),
+        side = "top"
+      )
+      x <- list(
+        title = "",
+        zeroline = FALSE,
+        showline = FALSE,
+        showticklabels = FALSE,
+        showgrid = FALSE
+      )
+      
+      plot_ly(leachPotential$df,
+              y = ~rotLeachN, x = ~scenario,
+              marker = list(color = 'rgba(50, 171, 96, 0.7)'),
+              type = "bar",
+              hovertext = ~rotLeachN,
+              hoverinfo = "text") %>%
+        layout(title = "PREDICTED NITRATE LEACHING <br> (lbs/acre)",
+               xaxis = x, yaxis = y, barmode = 'group',
+               margin = list(t=100))
+      
+    })
+
+  })
+  
+  observeEvent(input$reset, {
+    # reset the preds
+    scenario$df <- NULL
+    leachPotential$df <- NULL
+    
+  })
+
+}
+
+# Run the application 
+shinyApp(ui = ui, server = server)
