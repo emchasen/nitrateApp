@@ -400,7 +400,7 @@ server <- function(input, output) {
       
       
       # nitrate leaching for a single year----------------
-      leachN[i] = inputsN - outputsN
+      leachN[i] = if_else(inputsN - outputsN < 0, 0, inputsN - outputsN)
       
       
       # manureP from manureN--------------------- 
