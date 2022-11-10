@@ -60,16 +60,9 @@ ui <- dashboardPage(
               # soil selection begins
               # row of selectInputs for selecting soils
               fixedRow(
-                # Input 1: dropdown for county selections
-                column(4,
-                       selectInput(
-                         inputId = "county",
-                         label = h4("County"),
-                         choices = counties)),
-                #Input 2: dropdown for component name selections. list is created in server.
-                column(4, uiOutput("compname")),
-                # Input 3: dropdown for soil symbol. list is created in server.
-                column(4, uiOutput("musym"))),
+                # soil selections
+                uiOutput("soilSelect")
+                ),
               
               # crop management definition begins
               fixedRow(
@@ -138,7 +131,8 @@ ui <- dashboardPage(
                 column(3, 
                        uiOutput("yield_dr4")),
                 column(3, 
-                       uiOutput("yield_pt"))),
+                       uiOutput("yield_pt"))
+                ),
               fixedRow(
                 column(12,
                        h3("4. Estimated erosion"))
@@ -205,4 +199,5 @@ ui <- dashboardPage(
               p("Masarik, K. 2021. Soil nitrogen balance calculator: version 1.0. University of WI-Madison, Extension."),
               p("USDA Natural Resource Conservation Service (NRCS). Feb 2016. Wisconsin Conservation
                 Planning Technical Note 1: Nutrient Management (590).")
-    ))))
+              )
+      )))

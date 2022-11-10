@@ -1,7 +1,20 @@
 
 server <- function(input, output) {
 # soil selection---------------  
-  ## soil comp by county update-------------
+  ## reactive values-----------------------------------
+  
+  
+  avail_comps <- reactive({
+    
+    soils_by_county <- soils %>% filter(County == input$county)
+    
+    sort(unique(soils_by_county$compnam))
+  })
+  
+  output$soilSelect <- renderUI({
+    
+    
+  })
   observeEvent(input$county, { 
     soils_by_county <- soils %>% filter(County == input$county)
     comps <- sort(unique(soils_by_county$compnam)) # here is the reactive value (avail_comps = reactive())
