@@ -267,14 +267,13 @@ server <- function(input, output) {
     ## initialize variable to keep track of leachable N for each year of rotation
     rotYrs = unique(options$rotYrs)
     rotationCrops = sort(unique(options$cropYear))
-    # if(crop != "Dry lot") {
-    ##TODO if you include dry lot, add this back in
-    fert <- input$fertilizerN
-    manure <- input$manureN
-    # } else {
-    #   fert = 0
-    #   manure = 0
-    # }
+    if(input$crop != "Dry lot") {
+      fert <- input$fertilizerN
+      manure <- input$manureN
+     } else {
+       fert = 0
+       manure = 0
+     }
     
     cropSystem = c() # paste the values from within the loop
     Ninputs_m = matrix(nrow = 8, ncol = rotYrs)
@@ -358,7 +357,9 @@ server <- function(input, output) {
         yield = input$yield_dr4 * (1-0.13) # alfalfa dm tons
       } else if(input$crop == "Pasture") {
         yield = input$yield_pt # pasture dm tons
-      } 
+      } else if(input$crop == "Dry lot") {
+        yield = 0
+      }
       
       ### inputs and outputs-------------------
       fertN = fert/100 * fertNrec  ## actual fertilizer N applied in lb/ac
@@ -481,8 +482,13 @@ server <- function(input, output) {
     } else {
       ifelse(cropYearNinputs$legume == "Yes", legume <- "with legume", legume <- "no legume")}
     
-    cropSystem = str_trim(paste(cropYearNinputs$crop, cover, rotation, density, legume, 
-                                "fertN%:", fert, "manureN%:", manure))
+    if(input$crop != "Dry lot") {
+      cropSystem = str_trim(paste(cropYearNinputs$crop, cover, rotation, density, legume, 
+                                  "fertN%:", fert, "manureN%:", manure))
+    }  else {
+      cropSystem = str_trim(paste(cropYearNinputs$crop, density, "density"))
+    }
+    
     
     
     # number of scenarios

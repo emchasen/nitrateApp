@@ -8,12 +8,8 @@ ui <- dashboardPage(
   # sidebarMenu--------------------
   dashboardSidebar(
     sidebarMenu(
-      menuItem("App Description", tabName = "appdescription"),
-      #menuItem("Model inputs", tabName = "inputs"),
       menuItem("Predict nitrate leaching", tabName = "nitrate"),
       menuItem("Variables", tabName = "assumptions"),
-      #menuItem("Methods", tabName = "methods"),
-      #menuItem("Acknowledgement", tabName = "acknowledgement")
       menuItem("References", tabName = "resources")
     )
   ),
@@ -23,8 +19,8 @@ ui <- dashboardPage(
       theme = "poor_mans_flatly"
     ),
     tabItems(
-      # appdescription------------------
-      tabItem(tabName = "appdescription",
+      # nitrate model-------------------
+      tabItem(tabName = "nitrate",
               fluidRow(
                 column(1,
                        h2(img(src = "grasslandColorCenter.png", height = 60))),
@@ -34,24 +30,15 @@ ui <- dashboardPage(
                 
                 column(1,
                        h2(img(src = "uw-crest.png", height = 60)))),
-                hr(style = "margin-top:0px"),
-                fluidRow(
-                  column(12,
-                         tags$div(
-                           "This app is part of the ",
-                           tags$a(href="https://grasslandag.org/", 
-                                  "Grassland 2.0 project."), "It was designed to compare nitrate leaching potential 
-                         under different crop managements located in Wisconsin, USA."),
-                         br(),
-                         p("To determine nitrate leaching potential, select your soil type and then define
-                        your cropping system. You can hit 'Run models' as many times as you like under different soils and cropping systems.")
-                  ))
-              ),
-      # nitrate model-------------------
-      tabItem(tabName = "nitrate",
+              hr(style = "margin-top:0px"),
+              p("To determine nitrate leaching potential, select your soil type and then define your cropping system. 
+                You can hit 'Predict nitrate leaching' as many times as you like under different soils and cropping systems
+                to compare."),
+              p("The 'Variables' page lists the inputs and outputs for the nitrate leaching model for the current scenario."),
+              hr(style = "margin-top:0px"),
               fixedRow(
                 column(12,
-                       h3("1. Select Your Soil Series"),
+                       h3("Select Your Soil Series"),
                        helpText(
                          a(
                            "Click here to find your soil (NRCS Web Soil Survey)",
@@ -74,7 +61,7 @@ ui <- dashboardPage(
               # crop management definition begins
               fixedRow(
                 column(12,
-                       h3(("2. Define your cropping System")))
+                       h3(("Define your cropping System")))
               ),
               
               # row of input including crop rotation, cover crop and tillage (density for dry lot and pasture)
@@ -112,8 +99,12 @@ ui <- dashboardPage(
               
               # enter previous predictions
               fixedRow(
-                column(12,
-                       h3("3. Yield"))
+                conditionalPanel(
+                  #input$crop == "Continuous corn grain"
+                  condition = "input.crop != 'Dry lot'",
+                  column(12,
+                         h3(("Yield")))
+                )
               ),
               br(),
               fluidRow(
@@ -141,7 +132,7 @@ ui <- dashboardPage(
                        uiOutput("yield_pt"))),
               fixedRow(
                 column(12,
-                       h3("4. Estimated erosion"))
+                       h3("Estimated erosion"))
               ),
               tags$div(
                 "Estimate erosion or enter predicted erosion from ",
@@ -195,7 +186,16 @@ ui <- dashboardPage(
               )),
       # references----------------
       tabItem(tabName = "resources",
-              h4("Works Cited"),
+              fluidRow(
+                column(1,
+                       h2(img(src = "grasslandColorCenter.png", height = 60))),
+                
+                column(10, align = "center",
+                       h3("Works Cited")),
+                
+                column(1,
+                       h2(img(src = "uw-crest.png", height = 60)))),
+              hr(style = "margin-top:0px"),
               p("Carrie Laboski and John Peters, Nutrient application guidelines for field, 
                 vegetable, and fruit crops in Wisconsin. UW Extension A2809."),
               p("Meisinger, J. J., & Randall, G. W. (1991). Estimating nitrogen budgets 
@@ -204,5 +204,18 @@ ui <- dashboardPage(
                 (pp. 85–124)"),
               p("Masarik, K. 2021. Soil nitrogen balance calculator: version 1.0. University of WI-Madison, Extension."),
               p("USDA Natural Resource Conservation Service (NRCS). Feb 2016. Wisconsin Conservation
-                Planning Technical Note 1: Nutrient Management (590).")
-    ))))
+                Planning Technical Note 1: Nutrient Management (590)."),
+              hr(style = "margin-top:0px"),
+              fluidRow(
+                column(12,
+                       tags$div(
+                         "This app is part of the ",
+                         tags$a(href="https://grasslandag.org/", 
+                                "Grassland 2.0 project."), "It was designed to compare nitrate leaching potential 
+                         under different crop managements located in Wisconsin, USA.")
+                       )
+                )
+              )
+      )
+    )
+  )
