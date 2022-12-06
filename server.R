@@ -431,6 +431,11 @@ server <- function(input, output) {
       paste("Average manure P percent:", round(mean(manurePpercent),0))
     })
     
+    # soil om----------------------------
+    output$om <- renderText({
+      paste("Soil om percent:", om)
+    })
+    
     # input table----------------------
     inputNames = c('Recommended N', 'Fertilizer N', 'Allowed manure N', 'Manure N', 'Precipitation', 'Dry deposition', 'Fixation', 'Grazing manure')
     output$Ninputs <- render_gt(

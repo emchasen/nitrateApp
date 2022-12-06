@@ -183,6 +183,10 @@ ui <- dashboardPage(
               fluidRow(
                 column(6, 
                        textOutput("manureP"))
+              ),
+              fluidRow(
+                column(6, 
+                       textOutput("om"))
               )),
       # references----------------
       tabItem(tabName = "resources",
