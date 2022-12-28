@@ -153,7 +153,11 @@ ui <- dashboardPage(
               br(),
               hr(style = "margin-top:0px"),
               fluidRow(
-                column(6,
+                column(4,
+                       plotlyOutput("Nloss")),
+                column(4,
+                       plotlyOutput("NlossH2O")),
+                column(4,
                        plotlyOutput("Nleach"))
               ),
               fluidRow(

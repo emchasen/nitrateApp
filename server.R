@@ -251,6 +251,10 @@ server <- function(input, output) {
  
   leachPotential <- reactiveValues()
   leachPotential$df <- data.frame(scenario = numeric(0), rotLeachN = numeric(0))
+  rotTotalLossN <- reactiveValues()
+  rotTotalLossN$df <- data.frame(scenario = numeric(0), rotLossN = numeric(0))
+  H2OlossN <- reactiveValues()
+  H2OlossN$df <- data.frame(scenario = numeric(0), rotNlossH2O = numeric(0))
   vals <- reactiveValues(count = 0)
   
   # run models--------------------
@@ -279,6 +283,8 @@ server <- function(input, output) {
     Ninputs_m = matrix(nrow = 8, ncol = rotYrs)
     #Ninputs_m = matrix(nrow = rotYrs, ncol = 9) # if we want dmYield
     Noutputs_m = matrix(nrow = 7, ncol = rotYrs)
+    totalNloss = c()
+    NlossH2O = c()
     leachN = c()
     manurePpercent = c()
     ## begin for loop-------------------------
@@ -381,7 +387,6 @@ server <- function(input, output) {
       outputsN = harvN + NH3_N + denitN + erosN + gasN + NH3senN + runoffN
       
       ### fill matrices------------------
-      #Ninputs_m[i,1] = yield
       Ninputs_m[1, i] = fertNrec
       Ninputs_m[2, i] = fertN 
       Ninputs_m[3, i] = manureNallow
@@ -402,7 +407,13 @@ server <- function(input, output) {
       
       # nitrate leaching for a single year----------------
       leachN[i] = if_else(inputsN - outputsN < 0, 0, inputsN - outputsN)
-      
+      totalNloss[i] = leachN[i] + (outputsN - harvN)
+      NlossH2O[i] = leachN[i] + (erosN + runoffN)
+      print(leachN[i])
+      print(totalNloss[i])
+      print(NlossH2O[i])
+      nLosses <- data.frame(leachN = leachN, totalNloss = totalNloss, NlossH2O = NlossH2O)
+      print(nLosses)
       
       # manureP from manureN--------------------- 
       availableManureN = manureN 
@@ -413,10 +424,14 @@ server <- function(input, output) {
       manurePpercent[i] = 100*(manureP/Pneeds)
     }
     
+    print("outofloop")
+    print("leachYearTable")
     # leaching by year------------------------
     # display leaching from each year
     output$leachYear <- render_gt({
-      leachN %>%
+
+      ##TODO may have to fix this table
+      nLosses %>%
         as_tibble %>%
         gt() %>%
         tab_header(title = "Nitrate leaching by year",
@@ -425,7 +440,7 @@ server <- function(input, output) {
                    decimals = 1) %>%
         tab_options(column_labels.hidden = TRUE)
     })
-    
+
     # manureP%------------------------
     output$manureP <- renderText({
       paste("Average manure P percent:", round(mean(manurePpercent),0))
@@ -497,34 +512,40 @@ server <- function(input, output) {
     
     
     # number of scenarios
+    print('rotation values')
     vals$count <- vals$count + 1
     rotLeachN <- round(mean(leachN),2)
+    print(rotLeachN)
     newLeachN <- c(scenario = vals$count, rotLeachN = rotLeachN)
-    
+    rotLossN = round(mean(totalNloss), 2)
+    print(rotLossN)
+    newTotalNloss <- c(scenario = vals$count, rotLossN = rotLossN)
+    rotNlossH2O = round(mean(NlossH2O), 2)
+    print(rotNlossH2O)
+    newNlossH2O <- c(scenario = vals$count, rotNlossH2O = rotNlossH2O)
+      
     # scenario dataframe
-    newScenario <- c(scenario = vals$count, 'Soil series' = unique(soil$compnam), 'Map Symbol' = unique(soil$MUSYM), 
-                     'Crop system' = cropSystem, 'N leach potential' = rotLeachN) 
-    
-    scenario$df <- bind_rows(scenario$df, newScenario) 
-    
+    newScenario <- c(scenario = vals$count, 'Soil series' = unique(soil$compnam), 'Map Symbol' = unique(soil$MUSYM),
+                     'Crop system' = cropSystem, 'Total N loss' = rotLossN, 'N loss to water' = rotNlossH2O, 'N leach potential' = rotLeachN)
+
+    scenario$df <- bind_rows(scenario$df, newScenario)
+
     # scenario dataframe---------------
     output$scenarios <- render_gt({
       scenario$df %>%
         as_tibble() %>%
         gt()
     })
-    
-    
-    
-    leachPotential$df <- bind_rows(leachPotential$df, newLeachN)
-    
-    # nitrogen leaching plot
-    output$Nleach <- renderPlotly({
-      
+
+    rotTotalLossN$df <- bind_rows(rotTotalLossN$df, newTotalNloss)
+
+    # nitrogen loss plot--------------------------
+    output$Nloss <- renderPlotly({
+
       validate(
-        need(is.data.frame(leachPotential$df), "add scenarios")
+        need(is.data.frame(rotTotalLossN$df), "add scenarios")
       )
-      
+
       y <- list(
         title = " ",
         #range = c(0, max(pred_table$df$Erosion)),
@@ -537,7 +558,76 @@ server <- function(input, output) {
         showticklabels = FALSE,
         showgrid = FALSE
       )
-      
+
+      plot_ly(rotTotalLossN$df,
+              y = ~rotLossN, x = ~scenario,
+              marker = list(color = 'rgba(50, 171, 96, 0.7)'),
+              type = "bar",
+              hovertext = ~rotLossN,
+              hoverinfo = "text") %>%
+        layout(title = "PREDICTED TOTAL NITRATE LOSS <br> (lbs/acre)",
+               xaxis = x, yaxis = y, barmode = 'group',
+               margin = list(t=100))
+
+    })
+
+    # nitrate water loss plot----------------
+    H2OlossN$df <- bind_rows(H2OlossN$df, newNlossH2O)
+
+    # nitrogen leaching plot
+    output$NlossH2O <- renderPlotly({
+
+      validate(
+        need(is.data.frame(H2OlossN$df), "add scenarios")
+      )
+
+      y <- list(
+        title = " ",
+        #range = c(0, max(pred_table$df$Erosion)),
+        side = "top"
+      )
+      x <- list(
+        title = "",
+        zeroline = FALSE,
+        showline = FALSE,
+        showticklabels = FALSE,
+        showgrid = FALSE
+      )
+
+      plot_ly(H2OlossN$df,
+              y = ~rotNlossH2O, x = ~scenario,
+              marker = list(color = 'rgba(50, 171, 96, 0.7)'),
+              type = "bar",
+              hovertext = ~rotNlossH2O,
+              hoverinfo = "text") %>%
+        layout(title = "PREDICTED NITRATE LOSS IN H2O <br> (lbs/acre)",
+               xaxis = x, yaxis = y, barmode = 'group',
+               margin = list(t=100))
+
+    })
+
+    leachPotential$df <- bind_rows(leachPotential$df, newLeachN)
+
+    # nitrogen leaching plot
+    output$Nleach <- renderPlotly({
+
+      validate(
+        need(is.data.frame(leachPotential$df), "add scenarios")
+      )
+
+      y <- list(
+        title = " ",
+        #range = c(0, max(pred_table$df$Erosion)),
+        side = "top"
+      )
+      x <- list(
+        title = "",
+        zeroline = FALSE,
+        showline = FALSE,
+        showticklabels = FALSE,
+        showgrid = FALSE
+      )
+
       plot_ly(leachPotential$df,
               y = ~rotLeachN, x = ~scenario,
               marker = list(color = 'rgba(50, 171, 96, 0.7)'),
@@ -547,9 +637,9 @@ server <- function(input, output) {
         layout(title = "PREDICTED NITRATE LEACHING <br> (lbs/acre)",
                xaxis = x, yaxis = y, barmode = 'group',
                margin = list(t=100))
-      
+
     })
-    
+
   })
   
   observeEvent(input$reset, {
