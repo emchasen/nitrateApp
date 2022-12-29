@@ -1,6 +1,6 @@
 
 server <- function(input, output) {
-# soil selection---------------  
+  # soil selection---------------  
   ## soil comp by county update-------------
   observeEvent(input$county, { 
     soils_by_county <- soils %>% filter(County == input$county)
@@ -248,7 +248,7 @@ server <- function(input, output) {
   # reactive values and dfs------------------------
   scenario <- reactiveValues()
   scenario$df <- data.frame()
- 
+  
   leachPotential <- reactiveValues()
   leachPotential$df <- data.frame(scenario = numeric(0), rotLeachN = numeric(0))
   rotTotalLossN <- reactiveValues()
@@ -274,15 +274,15 @@ server <- function(input, output) {
     if(input$crop != "Dry lot") {
       fert <- input$fertilizerN
       manure <- input$manureN
-     } else {
-       fert = 0
-       manure = 0
-     }
+    } else {
+      fert = 0
+      manure = 0
+    }
     
     cropSystem = c() # paste the values from within the loop
-    Ninputs_m = matrix(nrow = 8, ncol = rotYrs)
+    Ninputs_m = matrix(ncol = 9, nrow = rotYrs)
     #Ninputs_m = matrix(nrow = rotYrs, ncol = 9) # if we want dmYield
-    Noutputs_m = matrix(nrow = 7, ncol = rotYrs)
+    Noutputs_m = matrix(ncol = 8, nrow = rotYrs)
     totalNloss = c()
     NlossH2O = c()
     leachN = c()
@@ -387,22 +387,24 @@ server <- function(input, output) {
       outputsN = harvN + NH3_N + denitN + erosN + gasN + NH3senN + runoffN
       
       ### fill matrices------------------
-      Ninputs_m[1, i] = fertNrec
-      Ninputs_m[2, i] = fertN 
-      Ninputs_m[3, i] = manureNallow
-      Ninputs_m[4, i] = manureN
-      Ninputs_m[5, i] = precN
-      Ninputs_m[6, i] = dryN
-      Ninputs_m[7, i] = fixN
-      Ninputs_m[8, i] = grazedManureN
+      Ninputs_m[i, 1] = i
+      Ninputs_m[i, 2] = fertNrec
+      Ninputs_m[i, 3] = fertN 
+      Ninputs_m[i, 4] = manureNallow
+      Ninputs_m[i, 5] = manureN
+      Ninputs_m[i, 6] = precN
+      Ninputs_m[i, 7] = dryN
+      Ninputs_m[i, 8] = fixN
+      Ninputs_m[i, 9] = grazedManureN
       
-      Noutputs_m[1, i] = harvN
-      Noutputs_m[2, i] = NH3_N 
-      Noutputs_m[3, i] = denitN
-      Noutputs_m[4, i] = erosN 
-      Noutputs_m[5, i] = gasN 
-      Noutputs_m[6, i] = NH3senN 
-      Noutputs_m[7, i] = runoffN
+      Noutputs_m[i, 1] = i
+      Noutputs_m[i, 2] = harvN
+      Noutputs_m[i, 3] = NH3_N 
+      Noutputs_m[i, 4] = denitN
+      Noutputs_m[i, 5] = erosN 
+      Noutputs_m[i, 6] = gasN 
+      Noutputs_m[i, 7] = NH3senN 
+      Noutputs_m[i, 8] = runoffN
       
       
       # nitrate leaching for a single year----------------
@@ -412,7 +414,7 @@ server <- function(input, output) {
       print(leachN[i])
       print(totalNloss[i])
       print(NlossH2O[i])
-      nLosses <- data.frame(leachN = leachN, totalNloss = totalNloss, NlossH2O = NlossH2O)
+      nLosses <- data.frame(totalNloss = totalNloss, NlossH2O = NlossH2O, leachN = leachN)
       print(nLosses)
       
       # manureP from manureN--------------------- 
@@ -424,23 +426,23 @@ server <- function(input, output) {
       manurePpercent[i] = 100*(manureP/Pneeds)
     }
     
-    print("outofloop")
-    print("leachYearTable")
+    
     # leaching by year------------------------
     # display leaching from each year
     output$leachYear <- render_gt({
-
+      
       ##TODO may have to fix this table
       nLosses %>%
-        as_tibble %>%
-        gt() %>%
+        gt(rownames_to_stub = TRUE) %>%
         tab_header(title = "Nitrate leaching by year",
                    subtitle = "N lbs") %>%
         fmt_number(columns = where(is.numeric),
                    decimals = 1) %>%
-        tab_options(column_labels.hidden = TRUE)
+        cols_label(totalNloss = "Total N loss",
+                   NlossH2O = "N loss to H2O",
+                   leachN = "Nitrate leaching")
     })
-
+    
     # manureP%------------------------
     output$manureP <- renderText({
       paste("Average manure P percent:", round(mean(manurePpercent),0))
@@ -452,36 +454,44 @@ server <- function(input, output) {
     })
     
     # input table----------------------
-    inputNames = c('Recommended N', 'Fertilizer N', 'Allowed manure N', 'Manure N', 'Precipitation', 'Dry deposition', 'Fixation', 'Grazing manure')
+    inputNames = c('Year', 'Recommended N', 'Fertilizer N', 'Allowed manure N', 'Manure N', 'Precipitation', 'Dry deposition', 'Fixation', 'Grazing manure')
     output$Ninputs <- render_gt(
       
-      inputNames %>%
-        as_tibble %>%
-        bind_cols(Ninputs_m) %>%
-        gt() %>%
-        fmt_number(columns = where(is.numeric),
+      Ninputs_m %>%
+        as_tibble(.name_repair = ~inputNames) %>%
+        gt(rowname_col = "Year") %>%
+        fmt_number(columns = 'Recommended N':'Grazing manure',
                    decimals = 1) %>%
         tab_header(title = "Nitrogen inputs",
-                   subtitle = "N lbs/acre/year")%>%
-        tab_options(column_labels.hidden = TRUE)
-        
+                   subtitle = "N lbs/acre/year")  %>%
+        tab_stubhead(label = "Year") %>%
+        tab_style(
+          style = list(
+            cell_text(weight = "bold")
+          ),
+          locations = cells_column_labels()
+        )
+      
     )
     
     # output table--------------------
-    outputNames = c('Harvested N', 'Ammonia loss', 'Denitrification', 'Erosion', 'Misc. gases', 'Ammonia at senescence', 'Runoff')
+    outputNames = c('Year', 'Harvested N', 'Ammonia loss', 'Denitrification', 'Erosion', 'Misc. gases', 'Ammonia at senescence', 'Runoff')
     output$Noutputs <- render_gt(
-      #as.data.frame(Noutputs_m),
-      #colnames(Noutputs_m) <- outputNames,
-      outputNames %>%
-        as_tibble %>%
-        bind_cols(Noutputs_m) %>%
-        as_tibble %>%
-        gt() %>%
-        fmt_number(columns = where(is.numeric),
+      
+      Noutputs_m %>%
+        as_tibble(.name_repair = ~outputNames) %>%
+        gt(rowname_col = "Year") %>%
+        fmt_number(columns = 'Harvested N':'Runoff',
                    decimals = 1) %>%
         tab_header(title = "Nitrogen outputs",
                    subtitle = "N lbs/acre/year") %>%
-        tab_options(column_labels.hidden = TRUE)
+        tab_stubhead(label = "Year") %>%
+        tab_style(
+          style = list(
+            cell_text(weight = "bold")
+          ),
+          locations = cells_column_labels()
+        )
     )
     
     # crop system name--------------------
@@ -523,29 +533,29 @@ server <- function(input, output) {
     rotNlossH2O = round(mean(NlossH2O), 2)
     print(rotNlossH2O)
     newNlossH2O <- c(scenario = vals$count, rotNlossH2O = rotNlossH2O)
-      
+    
     # scenario dataframe
     newScenario <- c(scenario = vals$count, 'Soil series' = unique(soil$compnam), 'Map Symbol' = unique(soil$MUSYM),
                      'Crop system' = cropSystem, 'Total N loss' = rotLossN, 'N loss to water' = rotNlossH2O, 'N leach potential' = rotLeachN)
-
+    
     scenario$df <- bind_rows(scenario$df, newScenario)
-
+    
     # scenario dataframe---------------
     output$scenarios <- render_gt({
       scenario$df %>%
         as_tibble() %>%
         gt()
     })
-
+    
     rotTotalLossN$df <- bind_rows(rotTotalLossN$df, newTotalNloss)
-
+    
     # nitrogen loss plot--------------------------
     output$Nloss <- renderPlotly({
-
+      
       validate(
         need(is.data.frame(rotTotalLossN$df), "add scenarios")
       )
-
+      
       y <- list(
         title = " ",
         #range = c(0, max(pred_table$df$Erosion)),
@@ -558,29 +568,29 @@ server <- function(input, output) {
         showticklabels = FALSE,
         showgrid = FALSE
       )
-
+      
       plot_ly(rotTotalLossN$df,
               y = ~rotLossN, x = ~scenario,
               marker = list(color = 'rgba(50, 171, 96, 0.7)'),
               type = "bar",
               hovertext = ~rotLossN,
               hoverinfo = "text") %>%
-        layout(title = "PREDICTED TOTAL NITRATE LOSS <br> (lbs/acre)",
+        layout(title = "PREDICTED <br> TOTAL NITRATE LOSS <br> (lbs/acre)",
                xaxis = x, yaxis = y, barmode = 'group',
                margin = list(t=100))
-
+      
     })
-
+    
     # nitrate water loss plot----------------
     H2OlossN$df <- bind_rows(H2OlossN$df, newNlossH2O)
-
+    
     # nitrogen leaching plot
     output$NlossH2O <- renderPlotly({
-
+      
       validate(
         need(is.data.frame(H2OlossN$df), "add scenarios")
       )
-
+      
       y <- list(
         title = " ",
         #range = c(0, max(pred_table$df$Erosion)),
@@ -593,28 +603,30 @@ server <- function(input, output) {
         showticklabels = FALSE,
         showgrid = FALSE
       )
-
+      
       plot_ly(H2OlossN$df,
               y = ~rotNlossH2O, x = ~scenario,
               marker = list(color = 'rgba(50, 171, 96, 0.7)'),
               type = "bar",
               hovertext = ~rotNlossH2O,
               hoverinfo = "text") %>%
-        layout(title = "PREDICTED NITRATE LOSS IN H2O <br> (lbs/acre)",
+        layout(title = "PREDICTED <br> NITRATE LOSS IN H2O <br> (lbs/acre)",
                xaxis = x, yaxis = y, barmode = 'group',
                margin = list(t=100))
-
+      
     })
-
+    
+    # nitrate leaching plot------------
+    
     leachPotential$df <- bind_rows(leachPotential$df, newLeachN)
-
+    
     # nitrogen leaching plot
     output$Nleach <- renderPlotly({
-
+      
       validate(
         need(is.data.frame(leachPotential$df), "add scenarios")
       )
-
+      
       y <- list(
         title = " ",
         #range = c(0, max(pred_table$df$Erosion)),
@@ -627,19 +639,19 @@ server <- function(input, output) {
         showticklabels = FALSE,
         showgrid = FALSE
       )
-
+      
       plot_ly(leachPotential$df,
               y = ~rotLeachN, x = ~scenario,
               marker = list(color = 'rgba(50, 171, 96, 0.7)'),
               type = "bar",
               hovertext = ~rotLeachN,
               hoverinfo = "text") %>%
-        layout(title = "PREDICTED NITRATE LEACHING <br> (lbs/acre)",
+        layout(title = "PREDICTED <br> NITRATE LEACHING <br> (lbs/acre)",
                xaxis = x, yaxis = y, barmode = 'group',
                margin = list(t=100))
-
+      
     })
-
+    
   })
   
   observeEvent(input$reset, {

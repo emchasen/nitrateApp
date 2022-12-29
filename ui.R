@@ -171,15 +171,18 @@ ui <- dashboardPage(
       tabItem(tabName = "assumptions",
               p("Below are the inputs and outputs for the most recent scenario."),
               fluidRow(
-                column(6,
-                       gt_output("Ninputs")),
-                column(6,
+                column(12,
+                       gt_output("Ninputs"))
+                ),
+              br(),
+              fluidRow(
+                column(12,
                        gt_output("Noutputs"))
-              ),
+                ),
               br(),
               hr(style = "margin-top:0px"),
               fluidRow(
-                column(6,
+                column(12,
                        gt_output("leachYear"))
               ),
               br(),
