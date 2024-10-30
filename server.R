@@ -322,6 +322,8 @@ server <- function(input, output) {
           rasterVal = '>20'
         }
       }
+      
+      # rasterVals is in the cropYearNinputs df
       cropYearNinputs <- filter(cropYearNinputs, rasterVals %in% rasterVal)
       #print(cropYearNinputs)
       
@@ -333,6 +335,7 @@ server <- function(input, output) {
       grazedManureN = cropYearNinputs$grazedManureN
       Nharv_content = cropYearNinputs$Nharv_content
       
+      #DrainClass_char is in the denit df
       denitr <- filter(denit, DrainClass_char %in% soil$drangcl)
       denitr <- filter(denitr, omLow <= om & om <= omHigh)
       denitLoss <- denitr$Denitr
@@ -426,6 +429,27 @@ server <- function(input, output) {
       manurePpercent[i] = 100*(manureP/Pneeds)
     }
     
+    output$plotData <- renderUI({
+      
+      tagList(
+        fluidRow(
+          column(4,
+                 plotlyOutput("Nloss")),
+          column(4,
+                 plotlyOutput("NlossH2O")),
+          column(4,
+                 plotlyOutput("Nleach"))
+        ),
+        fluidRow(
+          column(12,
+                 gt_output("scenarios"))
+        ),
+        br(),
+        fluidRow(
+          column(6,
+                 actionButton("reset", "Clear scenarios")))
+      )
+    })
     
     # leaching by year------------------------
     # display leaching from each year
@@ -434,13 +458,13 @@ server <- function(input, output) {
       ##TODO may have to fix this table
       nLosses %>%
         gt(rownames_to_stub = TRUE) %>%
-        tab_header(title = "Nitrate leaching by year",
+        tab_header(title = "N leaching by year",
                    subtitle = "N lbs") %>%
         fmt_number(columns = where(is.numeric),
                    decimals = 1) %>%
         cols_label(totalNloss = "Total N loss",
                    NlossH2O = "N loss to H2O",
-                   leachN = "Nitrate leaching")
+                   leachN = "Nitrate-N leaching")
     })
     
     # manureP%------------------------
@@ -512,11 +536,19 @@ server <- function(input, output) {
     } else {
       ifelse(cropYearNinputs$legume == "Yes", legume <- "with legume", legume <- "no legume")}
     
-    if(input$crop != "Dry lot") {
-      cropSystem = str_trim(paste(cropYearNinputs$crop, cover, rotation, density, legume, 
-                                  "fertN%:", fert, "manureN%:", manure))
-    }  else {
-      cropSystem = str_trim(paste(cropYearNinputs$crop, density, "density"))
+    if(input$crop != "Dry lot" & input$crop != "Pasture") {
+      print("540")
+      cropSystem =  paste0(cropYearNinputs$crop, "; ", cover, "; Fert N: ", fert,"%; ", "Manure N: ", manure, "%")
+    } else if(input$crop == "Pasture") {
+      if(rotation == "Continuous") {
+        cropSystem =  paste0(rotation, " ", cropYearNinputs$crop, "; ", density, " density; ", legume, "; ",
+                             "Fert N: ", fert,"%; ", "Manure N: ", manure, "%")
+      } else if(rotation == "Rotational") {
+        cropSystem =  paste0(rotation, " ", cropYearNinputs$crop, "; ", legume, "; ",
+                             "Fert N: ", fert,"%; ", "Manure N: ", manure, "%")
+      }
+    } else if(input$crop == "Dry lot"){
+      cropSystem = paste0(cropYearNinputs$crop, "; ", density, " density")
     }
     
     
@@ -535,7 +567,7 @@ server <- function(input, output) {
     newNlossH2O <- c(scenario = vals$count, rotNlossH2O = rotNlossH2O)
     
     # scenario dataframe
-    newScenario <- c(scenario = vals$count, 'Soil series' = unique(soil$compnam), 'Map Symbol' = unique(soil$MUSYM),
+    newScenario <- c(Scenario = vals$count, 'Soil series' = unique(soil$compnam), 'Map Symbol' = unique(soil$MUSYM),
                      'Crop system' = cropSystem, 'Total N loss' = rotLossN, 'N loss to water' = rotNlossH2O, 'N leach potential' = rotLeachN)
     
     scenario$df <- bind_rows(scenario$df, newScenario)
@@ -575,7 +607,7 @@ server <- function(input, output) {
               type = "bar",
               hovertext = ~rotLossN,
               hoverinfo = "text") %>%
-        layout(title = "PREDICTED <br> TOTAL NITRATE LOSS <br> (lbs/acre)",
+        layout(title = "PREDICTED <br> TOTAL N LOSS <br> (lbs/acre)",
                xaxis = x, yaxis = y, barmode = 'group',
                margin = list(t=100))
       
@@ -610,7 +642,7 @@ server <- function(input, output) {
               type = "bar",
               hovertext = ~rotNlossH2O,
               hoverinfo = "text") %>%
-        layout(title = "PREDICTED <br> NITRATE LOSS IN H2O <br> (lbs/acre)",
+        layout(title = "PREDICTED <br> N LOSS IN H2O <br> (lbs/acre)",
                xaxis = x, yaxis = y, barmode = 'group',
                margin = list(t=100))
       
@@ -646,7 +678,7 @@ server <- function(input, output) {
               type = "bar",
               hovertext = ~rotLeachN,
               hoverinfo = "text") %>%
-        layout(title = "PREDICTED <br> NITRATE LEACHING <br> (lbs/acre)",
+        layout(title = "PREDICTED <br> NITRATE-N LEACHING <br> (lbs/acre)",
                xaxis = x, yaxis = y, barmode = 'group',
                margin = list(t=100))
       
@@ -656,6 +688,8 @@ server <- function(input, output) {
   
   observeEvent(input$reset, {
     # reset the preds
+    rotTotalLossN$df <- NULL
+    H2OlossN$df <- NULL
     scenario$df <- NULL
     leachPotential$df <- NULL
     output$manureP <- NULL

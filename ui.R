@@ -152,21 +152,23 @@ ui <- dashboardPage(
               ),
               br(),
               hr(style = "margin-top:0px"),
-              fluidRow(
-                column(4,
-                       plotlyOutput("Nloss")),
-                column(4,
-                       plotlyOutput("NlossH2O")),
-                column(4,
-                       plotlyOutput("Nleach"))
-              ),
-              fluidRow(
-                column(12,
-                       gt_output("scenarios"))
-              ),
-              fluidRow(
-                column(6,
-                       actionButton("reset", "Clear scenarios")))),
+              uiOutput("plotData")
+              # fluidRow(
+              #   column(4,
+              #          plotlyOutput("Nloss")),
+              #   column(4,
+              #          plotlyOutput("NlossH2O")),
+              #   column(4,
+              #          plotlyOutput("Nleach"))
+              # ),
+              # fluidRow(
+              #   column(12,
+              #          gt_output("scenarios"))
+              # ),
+              # fluidRow(
+              #   column(6,
+              #          actionButton("reset", "Clear scenarios")))),
+      ),
       # variables------------------------------
       tabItem(tabName = "assumptions",
               p("Below are the inputs and outputs for the most recent scenario."),
